@@ -1,6 +1,6 @@
-Plano Docs v0.4.0
+Plano Docs v0.4.9
 llms.txt (auto-generated)
-Generated (UTC): 2025-12-24T13:25:11.204162+00:00
+Generated (UTC): 2026-03-02T16:37:41.521601+00:00
 
 Table of contents
 - Agents (concepts/agents)
@@ -11,6 +11,7 @@ Table of contents
 - Model Aliases (concepts/llm_providers/model_aliases)
 - Supported Providers & Configuration (concepts/llm_providers/supported_providers)
 - Prompt Target (concepts/prompt_target)
+- Signals™ (concepts/signals)
 - Intro to Plano (get_started/intro_to_plano)
 - Overview (get_started/overview)
 - Quickstart (get_started/quickstart)
@@ -24,6 +25,7 @@ Table of contents
 - Guardrails (guides/prompt_guard)
 - Conversational State (guides/state)
 - Welcome to Plano! (index)
+- CLI Reference (resources/cli_reference)
 - Configuration Reference (resources/configuration_reference)
 - Deployment (resources/deployment)
 - llms.txt (resources/llms_txt)
@@ -198,7 +200,7 @@ listeners:
   - type: agent
     name: agent_1
     port: 8001
-    router: arch_agent_router
+    router: plano_agent_router
     agents:
       - id: rag_agent
         description: virtual assistant for retrieval augmented generation tasks
@@ -395,7 +397,7 @@ client = OpenAI(
     base_url="http://127.0.0.1:12000/v1"
 )
 
-# Use any model configured in your arch_config.yaml
+# Use any model configured in your plano_config.yaml
 completion = client.chat.completions.create(
     model="gpt-4o-mini",  # Or use :ref:`model aliases <model_aliases>` like "fast-model"
     max_tokens=50,
@@ -559,7 +561,7 @@ client = anthropic.Anthropic(
     base_url="http://127.0.0.1:12000"
 )
 
-# Use any model configured in your arch_config.yaml
+# Use any model configured in your plano_config.yaml
 message = client.messages.create(
     model="claude-3-5-sonnet-20241022",
     max_tokens=50,
@@ -829,6 +831,8 @@ Connect to any combination of providers simultaneously (see supported_providers 
 First-Class Providers: Native integrations with OpenAI, Anthropic, DeepSeek, Mistral, Groq, Google Gemini, Together AI, xAI, Azure OpenAI, and Ollama
 
 OpenAI-Compatible Providers: Any provider implementing the OpenAI Chat Completions API standard
+
+Wildcard Model Configuration: Automatically configure all models from a provider using provider/* syntax
 
 Intelligent Routing
 Three powerful routing approaches to optimize model selection:
@@ -1161,7 +1165,7 @@ llm_providers:
 
 Common Configuration Fields:
 
-model: Provider prefix and model name (format: provider/model-name)
+model: Provider prefix and model name (format: provider/model-name or provider/* for wildcard expansion)
 
 access_key: API key for authentication (supports environment variables)
 
@@ -1276,7 +1280,11 @@ Advanced reasoning model (preview)
 Configuration Examples:
 
 llm_providers:
-  # Latest models (examples - use any OpenAI chat model)
+  # Configure all OpenAI models with wildcard
+  - model: openai/*
+    access_key: $OPENAI_API_KEY
+
+  # Or configure specific models
   - model: openai/gpt-5.2
     access_key: $OPENAI_API_KEY
     default: true
@@ -1284,7 +1292,6 @@ llm_providers:
   - model: openai/gpt-5
     access_key: $OPENAI_API_KEY
 
-  # Use any model name from OpenAI's API
   - model: openai/gpt-4o
     access_key: $OPENAI_API_KEY
 
@@ -1337,16 +1344,28 @@ Complex agents and coding
 Configuration Examples:
 
 llm_providers:
-  # Latest models (examples - use any Anthropic chat model)
+  # Configure all Anthropic models with wildcard
+  - model: anthropic/*
+    access_key: $ANTHROPIC_API_KEY
+
+  # Or configure specific models
   - model: anthropic/claude-opus-4-5
     access_key: $ANTHROPIC_API_KEY
 
   - model: anthropic/claude-sonnet-4-5
     access_key: $ANTHROPIC_API_KEY
 
-  # Use any model name from Anthropic's API
   - model: anthropic/claude-haiku-4-5
     access_key: $ANTHROPIC_API_KEY
+
+  # Override specific model with custom routing
+  - model: anthropic/*
+    access_key: $ANTHROPIC_API_KEY
+
+  - model: anthropic/claude-sonnet-4-20250514
+    access_key: $ANTHROPIC_PROD_API_KEY
+    routing_preferences:
+      - name: code_generation
 
 DeepSeek
 
@@ -1927,6 +1946,95 @@ llm_providers:
     access_key: $OPENAI_DEV_KEY
     name: openai-dev
 
+Wildcard Model Configuration
+
+Automatically configure all available models from a provider using wildcard patterns. Plano expands wildcards at configuration load time to include all known models from the provider’s registry.
+
+Basic Wildcard Usage:
+
+llm_providers:
+  # Expand to all OpenAI models
+  - model: openai/*
+    access_key: $OPENAI_API_KEY
+
+  # Expand to all Anthropic Claude models
+  - model: anthropic/*
+    access_key: $ANTHROPIC_API_KEY
+
+  # Expand to all Mistral models
+  - model: mistral/*
+    access_key: $MISTRAL_API_KEY
+
+How Wildcards Work:
+
+Known Providers (OpenAI, Anthropic, DeepSeek, Mistral, Groq, Gemini, Together AI, xAI, Moonshot, Zhipu):
+
+Expands at config load time to all models in Plano’s provider registry
+
+Creates entries for both canonical (openai/gpt-4) and short names (gpt-4)
+
+Enables the /models/list endpoint to list all available models
+
+View complete model list: provider_models.yaml
+
+Unknown/Custom Providers (e.g., custom-provider/*):
+
+Stores as a wildcard pattern for runtime matching
+
+Requires base_url and provider_interface configuration
+
+Matches model requests dynamically (e.g., custom-provider/any-model-name)
+
+Does not appear in /models/list endpoint
+
+Overriding Wildcard Models:
+
+You can configure specific models with custom settings even when using wildcards. Specific configurations take precedence and are excluded from wildcard expansion:
+
+llm_providers:
+  # Expand to all Anthropic models
+  - model: anthropic/*
+    access_key: $ANTHROPIC_API_KEY
+
+  # Override specific model with custom settings
+  # This model will NOT be included in the wildcard expansion above
+  - model: anthropic/claude-sonnet-4-20250514
+    access_key: $ANTHROPIC_PROD_API_KEY
+    routing_preferences:
+      - name: code_generation
+        priority: 1
+
+  # Another specific override
+  - model: anthropic/claude-3-haiku-20240307
+    access_key: $ANTHROPIC_DEV_API_KEY
+
+Custom Provider Wildcards:
+
+For providers not in Plano’s registry, wildcards enable dynamic model routing:
+
+llm_providers:
+  # Custom LiteLLM deployment
+  - model: litellm/*
+    base_url: https://litellm.example.com
+    provider_interface: openai
+    passthrough_auth: true
+
+  # Custom provider with all models
+  - model: custom-provider/*
+    access_key: $CUSTOM_API_KEY
+    base_url: https://api.custom-provider.com
+    provider_interface: openai
+
+Benefits:
+
+Simplified Configuration: One line instead of listing dozens of models
+
+Future-Proof: Automatically includes new models as they’re released
+
+Flexible Overrides: Customize specific models while using wildcards for others
+
+Selective Expansion: Control which models get custom configurations
+
 Default Model Configuration
 
 Mark one model as the default for fallback scenarios:
@@ -1954,6 +2062,76 @@ llm_providers:
     routing_preferences:
       - name: creative_writing
         description: creative content generation, storytelling, and writing assistance
+
+
+
+Passthrough Authentication
+
+When deploying Plano in front of LLM proxy services that manage their own API key validation (such as LiteLLM, OpenRouter, or custom gateways), you may want to forward the client’s original Authorization header instead of replacing it with a configured access_key.
+
+The passthrough_auth option enables this behavior:
+
+llm_providers:
+  # Forward client's Authorization header to LiteLLM
+  - model: openai/gpt-4o-litellm
+    base_url: https://litellm.example.com
+    passthrough_auth: true
+    default: true
+
+  # Forward to OpenRouter
+  - model: openai/claude-3-opus
+    base_url: https://openrouter.ai/api/v1
+    passthrough_auth: true
+
+How it works:
+
+Client sends a request with Authorization: Bearer <virtual-key>
+
+Plano preserves this header instead of replacing it with access_key
+
+The upstream service (e.g., LiteLLM) validates the virtual key
+
+Response flows back through Plano to the client
+
+Use Cases:
+
+LiteLLM Integration: Route requests to LiteLLM which manages virtual keys and rate limits
+
+OpenRouter: Forward requests to OpenRouter with per-user API keys
+
+Custom API Gateways: Integrate with internal gateways that have their own authentication
+
+Multi-tenant Deployments: Allow different clients to use their own credentials
+
+Important Notes:
+
+When passthrough_auth: true is set, the access_key field is ignored (a warning is logged if both are configured)
+
+If the client doesn’t provide an Authorization header, the request is forwarded without authentication (upstream will likely return 401)
+
+The base_url is typically required when using passthrough_auth
+
+Configuration with LiteLLM example:
+
+# plano_config.yaml
+version: v0.3.0
+
+listeners:
+  - name: llm
+    type: model
+    port: 10000
+
+model_providers:
+  - model: openai/gpt-4o
+    base_url: https://litellm.example.com
+    passthrough_auth: true
+    default: true
+
+# Client request - virtual key is forwarded to upstream
+curl http://localhost:10000/v1/chat/completions \
+  -H "Authorization: Bearer sk-litellm-virtual-key-abc123" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]}'
 
 Model Selection Guidelines
 
@@ -2142,7 +2320,7 @@ Example 1: Adjusting Retrieval
 
 User: What are the benefits of renewable energy?
 **[Plano]**: Check if there is an available <prompt_target> that can handle this user query.
-**[Plano]**: Found "get_info_for_energy_source" prompt_target in arch_config.yaml. Forward prompt to the endpoint configured in "get_info_for_energy_source"
+**[Plano]**: Found "get_info_for_energy_source" prompt_target in plano_config.yaml. Forward prompt to the endpoint configured in "get_info_for_energy_source"
 ...
 Assistant: Renewable energy reduces greenhouse gas emissions, lowers air pollution, and provides sustainable power sources like solar and wind.
 
@@ -2155,13 +2333,13 @@ Example 2: Switching Intent
 
 User: What are the symptoms of diabetes?
 **[Plano]**: Check if there is an available <prompt_target> that can handle this user query.
-**[Plano]**: Found "diseases_symptoms" prompt_target in arch_config.yaml. Forward disease=diabeteres to "diseases_symptoms" prompt target
+**[Plano]**: Found "diseases_symptoms" prompt_target in plano_config.yaml. Forward disease=diabeteres to "diseases_symptoms" prompt target
 ...
 Assistant: Common symptoms include frequent urination, excessive thirst, fatigue, and blurry vision.
 
 User: How is it diagnosed?
 **[Plano]**: New intent detected.
-**[Plano]**: Found "disease_diagnoses" prompt_target in arch_config.yaml. Forward disease=diabeteres to "disease_diagnoses" prompt target
+**[Plano]**: Found "disease_diagnoses" prompt_target in plano_config.yaml. Forward disease=diabeteres to "disease_diagnoses" prompt target
 ...
 Assistant: Diabetes is diagnosed through blood tests like fasting blood sugar, A1C, or an oral glucose tolerance test.
 
@@ -2277,6 +2455,445 @@ By carefully designing prompt targets as deterministic, task-specific entry poin
 
 ---
 
+Signals™
+--------
+Doc: concepts/signals
+
+-*- coding: utf-8 -*-
+
+Signals™
+
+Agentic Signals are behavioral and executions quality indicators that act as early warning signs of agent performance—highlighting both brilliant successes and severe failures. These signals are computed directly from conversation traces without requiring manual labeling or domain expertise, making them practical for production observability at scale.
+
+The Problem: Knowing What’s “Good”
+
+One of the hardest parts of building agents is measuring how well they perform in the real world.
+
+Offline testing relies on hand-picked examples and happy-path scenarios, missing the messy diversity of real usage. Developers manually prompt models, evaluate responses, and tune prompts by guesswork—a slow, incomplete feedback loop.
+
+Production debugging floods developers with traces and logs but provides little guidance on which interactions actually matter. Finding failures means painstakingly reconstructing sessions and manually labeling quality issues.
+
+You can’t score every response with an LLM-as-judge (too expensive, too slow) or manually review every trace (doesn’t scale). What you need are behavioral signals—fast, economical proxies that don’t label quality outright but dramatically shrink the search space, pointing to sessions most likely to be broken or brilliant.
+
+What Are Behavioral Signals?
+
+Behavioral signals are canaries in the coal mine—early, objective indicators that something may have gone wrong (or gone exceptionally well). They don’t explain why an agent failed, but they reliably signal where attention is needed.
+
+These signals emerge naturally from the rhythm of interaction:
+
+A user rephrasing the same request
+
+Sharp increases in conversation length
+
+Frustrated follow-up messages (ALL CAPS, “this doesn’t work”, excessive !!!/???)
+
+Agent repetition / looping
+
+Expressions of gratitude or satisfaction
+
+Requests to speak to a human / contact support
+
+Individually, these clues are shallow; together, they form a fingerprint of agent performance. Embedded directly into traces, they make it easy to spot friction as it happens: where users struggle, where agents loop, and where escalations occur.
+
+Signals vs Response Quality
+
+Behavioral signals and response quality are complementary.
+
+Response Quality
+
+Domain-specific correctness: did the agent do the right thing given business rules, user intent, and operational context? This often requires subject-matter experts or outcome instrumentation and is time-intensive but irreplaceable.
+
+Behavioral Signals
+
+Observable patterns that correlate with quality: high repair frequency, excessive turns, frustration markers, repetition, escalation, and positive feedback. Fast to compute and valuable for prioritizing which traces deserve inspection.
+
+Used together, signals tell you where to look, and quality evaluation tells you what went wrong (or right).
+
+How It Works
+
+Signals are computed automatically by the gateway and emitted as OpenTelemetry trace attributes to your existing observability stack (Jaeger, Honeycomb, Grafana Tempo, etc.). No additional libraries or instrumentation required—just configure your OTEL collector endpoint.
+
+Each conversation trace is enriched with signal attributes that you can query, filter, and visualize in your observability platform. The gateway analyzes message content (performing text normalization, Unicode handling, and pattern matching) to compute behavioral signals in real-time.
+
+OTEL Trace Attributes
+
+Signal data is exported as structured span attributes:
+
+signals.quality - Overall assessment (Excellent/Good/Neutral/Poor/Severe)
+
+signals.turn_count - Total number of turns in the conversation
+
+signals.efficiency_score - Efficiency metric (0.0-1.0)
+
+signals.repair.count - Number of repair attempts detected (when present)
+
+signals.repair.ratio - Ratio of repairs to user turns (when present)
+
+signals.frustration.count - Number of frustration indicators detected
+
+signals.frustration.severity - Frustration level (0-3)
+
+signals.repetition.count - Number of repetition instances detected
+
+signals.escalation.requested - Boolean escalation flag (“true” when present)
+
+signals.positive_feedback.count - Number of positive feedback indicators
+
+Visual Flag Marker
+
+When concerning signals are detected (frustration, looping, escalation, or poor/severe quality), the flag marker 🚩 is automatically appended to the span’s operation name, making problematic traces easy to spot in your trace visualizations.
+
+Querying in Your Observability Platform
+
+Example queries:
+
+Find all severe interactions: signals.quality = "Severe"
+
+Find flagged traces: search for 🚩 in span names
+
+Find long conversations: signals.turn_count > 10
+
+Find inefficient interactions: signals.efficiency_score < 0.5
+
+Find high repair rates: signals.repair.ratio > 0.3
+
+Find frustrated users: signals.frustration.severity >= 2
+
+Find looping agents: signals.repetition.count >= 3
+
+Find positive interactions: signals.positive_feedback.count >= 2
+
+Find escalations: signals.escalation.requested = "true"
+
+
+
+Core Signal Types
+
+The signals system tracks six categories of behavioral indicators.
+
+Turn Count & Efficiency
+
+What it measures
+
+Number of user–assistant exchanges.
+
+Why it matters
+
+Long conversations often indicate unclear intent resolution, confusion, or inefficiency. Very short conversations can correlate with crisp resolution.
+
+Key metrics
+
+Total turn count
+
+Warning thresholds (concerning: >7 turns, excessive: >12 turns)
+
+Efficiency score (0.0–1.0)
+
+Efficiency scoring
+
+Baseline expectation is ~5 turns (tunable). Efficiency stays at 1.0 up to the baseline, then declines with an inverse penalty as turns exceed baseline:
+
+efficiency = 1 / (1 + 0.3 * (turns - baseline))
+
+Follow-Up & Repair Frequency
+
+What it measures
+
+How often users clarify, correct, or rephrase requests. This is a user signal tracking query reformulation behavior—when users must repair or rephrase their requests because the agent didn’t understand or respond appropriately.
+
+Why it matters
+
+High repair frequency is a proxy for misunderstanding or intent drift. When users repeatedly rephrase the same request, it indicates the agent is failing to grasp or act on the user’s intent.
+
+Key metrics
+
+Repair count and ratio (repairs / user turns)
+
+Concerning threshold: >30% repair ratio
+
+Detected repair phrases (exact or fuzzy)
+
+Common patterns detected
+
+Explicit corrections: “I meant”, “correction”
+
+Negations: “No, I…”, “that’s not”
+
+Rephrasing: “let me rephrase”, “to clarify”
+
+Mistake acknowledgment: “my mistake”, “I was wrong”
+
+“Similar rephrase” heuristic based on token overlap (with stopwords downweighted)
+
+User Frustration
+
+What it measures
+
+Observable frustration indicators and emotional escalation.
+
+Why it matters
+
+Catching frustration early enables intervention before users abandon or escalate.
+
+Detection patterns
+
+Complaints: “this doesn’t work”, “not helpful”, “waste of time”
+
+Confusion: “I don’t understand”, “makes no sense”, “I’m confused”
+
+Tone markers:
+
+ALL CAPS (>=10 alphabetic chars and >=80% uppercase)
+
+Excessive punctuation (>=3 exclamation marks or >=3 question marks)
+
+Profanity: token-based (avoids substring false positives like “absolute” -> “bs”)
+
+Severity levels
+
+None (0): no indicators
+
+Mild (1): 1–2 indicators
+
+Moderate (2): 3–4 indicators
+
+Severe (3): 5+ indicators
+
+Repetition & Looping
+
+What it measures
+
+Assistant repetition / degenerative loops. This is an assistant signal tracking when the agent repeats itself, fails to follow instructions, or gets stuck in loops—indicating the agent is not making progress or adapting its responses.
+
+Why it matters
+
+Often indicates missing state tracking, broken tool integration, prompt issues, or the agent ignoring user corrections. High repetition means the agent is not learning from the conversation context.
+
+Detection method
+
+Compare assistant messages using bigram Jaccard similarity
+
+Classify:
+
+Exact: similarity >= 0.85
+
+Near-duplicate: similarity >= 0.50
+
+Looping is flagged when repetition instances exceed 2 in a session.
+
+Severity levels
+
+None (0): 0 instances
+
+Mild (1): 1–2 instances
+
+Moderate (2): 3–4 instances
+
+Severe (3): 5+ instances
+
+Positive Feedback
+
+What it measures
+
+User expressions of satisfaction, gratitude, and success.
+
+Why it matters
+
+Strong positive signals identify exemplar traces for prompt engineering and evaluation.
+
+Detection patterns
+
+Gratitude: “thank you”, “appreciate it”
+
+Satisfaction: “that’s great”, “awesome”, “love it”
+
+Success confirmation: “got it”, “that worked”, “perfect”
+
+Confidence scoring
+
+1 indicator: 0.6
+
+2 indicators: 0.8
+
+3+ indicators: 0.95
+
+Escalation Requests
+
+What it measures
+
+Requests for human help/support or threats to quit.
+
+Why it matters
+
+Escalation is a strong signal that the agent failed to resolve the interaction.
+
+Detection patterns
+
+Human requests: “speak to a human”, “real person”, “live agent”
+
+Support: “contact support”, “customer service”, “help desk”
+
+Quit threats: “I’m done”, “forget it”, “I give up”
+
+Overall Quality Assessment
+
+Signals are aggregated into an overall interaction quality on a 5-point scale.
+
+Excellent
+
+Strong positive signals, efficient resolution, low friction.
+
+Good
+
+Mostly positive with minor clarifications; some back-and-forth but successful.
+
+Neutral
+
+Mixed signals; neither clearly good nor bad.
+
+Poor
+
+Concerning negative patterns (high friction, multiple repairs, moderate frustration). High abandonment risk.
+
+Severe
+
+Critical issues—escalation requested, severe frustration, severe looping, or excessive turns (>12). Requires immediate attention.
+
+This assessment uses a scoring model that weighs positive factors (efficiency, positive feedback) against negative ones (frustration, repairs, repetition, escalation).
+
+Sampling and Prioritization
+
+In production, trace data is overwhelming. Signals provide a lightweight first layer of analysis to prioritize which sessions deserve review.
+
+Workflow:
+
+Gateway captures conversation messages and computes signals
+
+Signal attributes are emitted to OTEL spans automatically
+
+Your observability platform ingests and indexes the attributes
+
+Query/filter by signal attributes to surface outliers (poor/severe and exemplars)
+
+Review high-information traces to identify improvement opportunities
+
+Update prompts, routing, or policies based on findings
+
+Redeploy and monitor signal metrics to validate improvements
+
+This creates a reinforcement loop where traces become both diagnostic data and training signal.
+
+Trace Filtering and Telemetry
+
+Signal attributes are automatically added to OpenTelemetry spans, making them immediately queryable in your observability platform.
+
+Visual Filtering
+
+When concerning signals are detected, the flag marker 🚩 (U+1F6A9) is automatically appended to the span’s operation name. This makes flagged sessions immediately visible in trace visualizations without requiring attribute filtering.
+
+Example Span Attributes:
+
+# Span name: "POST /v1/chat/completions gpt-4 🚩"
+signals.quality = "Severe"
+signals.turn_count = 15
+signals.efficiency_score = 0.234
+signals.repair.count = 4
+signals.repair.ratio = 0.571
+signals.frustration.severity = 3
+signals.frustration.count = 5
+signals.escalation.requested = "true"
+signals.repetition.count = 4
+
+Building Dashboards
+
+Use signal attributes to build monitoring dashboards in Grafana, Honeycomb, Datadog, etc.:
+
+Quality distribution: Count of traces by signals.quality
+
+P95 turn count: 95th percentile of signals.turn_count
+
+Average efficiency: Mean of signals.efficiency_score
+
+High repair rate: Percentage where signals.repair.ratio > 0.3
+
+Frustration rate: Percentage where signals.frustration.severity >= 2
+
+Escalation rate: Percentage where signals.escalation.requested = "true"
+
+Looping rate: Percentage where signals.repetition.count >= 3
+
+Positive feedback rate: Percentage where signals.positive_feedback.count >= 1
+
+Creating Alerts
+
+Set up alerts based on signal thresholds:
+
+Alert when severe interaction count exceeds threshold in 1-hour window
+
+Alert on sudden spike in frustration rate (>2x baseline)
+
+Alert when escalation rate exceeds 5% of total conversations
+
+Alert on degraded efficiency (P95 turn count increases >50%)
+
+Best Practices
+
+Start simple:
+
+Alert or page on Severe sessions (or on spikes in Severe rate)
+
+Review Poor sessions within 24 hours
+
+Sample Excellent sessions as exemplars
+
+Combine multiple signals to infer failure modes:
+
+Looping: repetition severity >= 2 + excessive turns
+
+User giving up: frustration severity >= 2 + escalation requested
+
+Misunderstood intent: repair ratio > 30% + excessive turns
+
+Working well: positive feedback + high efficiency + no frustration
+
+Limitations and Considerations
+
+Signals don’t capture:
+
+Task completion / real outcomes
+
+Factual or domain correctness
+
+Silent abandonment (user leaves without expressing frustration)
+
+Non-English nuance (pattern libraries are English-oriented)
+
+Mitigation strategies:
+
+Periodically sample flagged sessions and measure false positives/negatives
+
+Tune baselines per use case and user population
+
+Add domain-specific phrase libraries where needed
+
+Combine signals with non-text metrics (tool failures, disconnects, latency)
+
+Behavioral signals complement—but do not replace—domain-specific response quality evaluation. Use signals to prioritize which traces to inspect, then apply domain expertise and outcome checks to diagnose root causes.
+
+The flag marker in the span name provides instant visual feedback in trace UIs, while the structured attributes (signals.quality, signals.frustration.severity, etc.) enable powerful querying and aggregation in your observability platform.
+
+See Also
+
+../guides/observability/tracing - Distributed tracing for agent systems
+
+../guides/observability/monitoring - Metrics and dashboards
+
+../guides/observability/access_logging - Request/response logging
+
+../guides/observability/observability - Complete observability guide
+
+---
+
 Intro to Plano
 --------------
 Doc: get_started/intro_to_plano
@@ -2342,7 +2959,7 @@ Doc: get_started/overview
 
 Overview
 
-Plano is delivery infrastructure for agentic apps. A models-native proxy server and data plane designed to help you build agents faster, and deliver them reliably to production.
+Plano is delivery infrastructure for agentic apps. An AI-native proxy server and data plane designed to help you build agents faster, and deliver them reliably to production.
 
 Plano pulls out the rote plumbing work (the “hidden AI middleware”) and decouples you from brittle, ever‑changing framework abstractions. It centralizes what shouldn’t be bespoke in every codebase like agent routing and orchestration, rich agentic signals and traces for continuous improvement, guardrail filters for safety and moderation, and smart LLM routing APIs for UX and DX agility. Use any language or AI framework, and ship agents to production faster with Plano.
 
@@ -2446,11 +3063,11 @@ Quickstart
 
 Follow this guide to learn how to quickly set up Plano and integrate it into your generative AI applications. You can:
 
+Use Plano as a model proxy (Gateway) to standardize access to multiple LLM providers.
+
 Build agents for multi-step workflows (e.g., travel assistants with flights and hotels).
 
 Call deterministic APIs via prompt targets to turn instructions directly into function calls.
-
-Use Plano as a model proxy (Gateway) to standardize access to multiple LLM providers.
 
 This quickstart assumes basic familiarity with agents and prompt targets from the Concepts section. For background, see Agents and Prompt Target.
 
@@ -2468,11 +3085,106 @@ Python (v3.10+)
 
 Plano’s CLI allows you to manage and interact with the Plano efficiently. To install the CLI, simply run the following command:
 
-We recommend that developers create a new Python virtual environment to isolate dependencies before installing Plano. This ensures that plano and its dependencies do not interfere with other packages on your system.
+We recommend using uv for fast, reliable Python package management. Install uv if you haven’t already:
+
+$ curl -LsSf https://astral.sh/uv/install.sh | sh
+
+Option 1: Install planoai with uv (Recommended)
+
+$ uv tool install planoai==0.4.9
+
+Option 2: Install with pip (Traditional)
 
 $ python -m venv venv
 $ source venv/bin/activate   # On Windows, use: venv\Scripts\activate
-$ pip install planoai==0.4.0
+$ pip install planoai==0.4.9
+
+
+
+Use Plano as a Model Proxy (Gateway)
+
+Step 1. Create plano config file
+
+Plano operates based on a configuration file where you can define LLM providers, prompt targets, guardrails, etc. Below is an example configuration that defines OpenAI and Anthropic LLM providers.
+
+Create plano_config.yaml file with the following content:
+
+version: v0.3.0
+
+listeners:
+  - type: model
+    name: model_1
+    address: 0.0.0.0
+    port: 12000
+
+model_providers:
+
+  - access_key: $OPENAI_API_KEY
+    model: openai/gpt-4o
+    default: true
+
+  - access_key: $ANTHROPIC_API_KEY
+    model: anthropic/claude-sonnet-4-5
+
+Step 2. Start plano
+
+Once the config file is created, ensure that you have environment variables set up for ANTHROPIC_API_KEY and OPENAI_API_KEY (or these are defined in a .env file).
+
+Start Plano:
+
+$ planoai up plano_config.yaml
+# Or if installed with uv tool: uvx planoai up plano_config.yaml
+2024-12-05 11:24:51,288 - planoai.main - INFO - Starting plano cli version: 0.4.9
+2024-12-05 11:24:51,825 - planoai.utils - INFO - Schema validation successful!
+2024-12-05 11:24:51,825 - planoai.main - INFO - Starting plano
+...
+2024-12-05 11:25:16,131 - planoai.core - INFO - Container is healthy!
+
+Step 3: Interact with LLM
+
+Step 3.1: Using curl command
+
+$ curl --header 'Content-Type: application/json' \
+  --data '{"messages": [{"role": "user","content": "What is the capital of France?"}], "model": "gpt-4o"}' \
+  http://localhost:12000/v1/chat/completions
+
+{
+  ...
+  "model": "gpt-4o-2024-08-06",
+  "choices": [
+    {
+      ...
+      "messages": {
+        "role": "assistant",
+        "content": "The capital of France is Paris.",
+      },
+    }
+  ],
+}
+
+When the requested model is not found in the configuration, Plano will randomly select an available model from the configured providers. In this example, we use "model": "none" and Plano selects the default model openai/gpt-4o.
+
+Step 3.2: Using OpenAI Python client
+
+Make outbound calls via the Plano gateway:
+
+from openai import OpenAI
+
+# Use the OpenAI client as usual
+client = OpenAI(
+  # No need to set a specific openai.api_key since it's configured in Plano's gateway
+  api_key='--',
+  # Set the OpenAI API base URL to the Plano gateway endpoint
+  base_url="http://127.0.0.1:12000/v1"
+)
+
+response = client.chat.completions.create(
+    # we select model from plano_config file
+    model="--",
+    messages=[{"role": "user", "content": "What is the capital of France?"}],
+)
+
+print("OpenAI Response:", response.choices[0].message.content)
 
 Build Agentic Apps with Plano
 
@@ -2533,6 +3245,8 @@ Step 2. Start your agents and Plano
 Run your flight_agent and hotel_agent services (see Orchestration for a full Travel Booking example), then start Plano with the config above:
 
 $ planoai up plano_config.yaml
+# Or if installed with uv tool:
+$ uvx planoai up plano_config.yaml
 
 Plano will start the orchestrator and expose an agent listener on port 8001.
 
@@ -2601,12 +3315,13 @@ listeners:
 Step 2. Start plano with currency conversion config
 
 $ planoai up plano_config.yaml
-2024-12-05 16:56:27,979 - cli.main - INFO - Starting plano cli version: 0.1.5
+# Or if installed with uv tool: uvx planoai up plano_config.yaml
+2024-12-05 16:56:27,979 - planoai.main - INFO - Starting plano cli version: 0.1.5
 ...
-2024-12-05 16:56:28,485 - cli.utils - INFO - Schema validation successful!
-2024-12-05 16:56:28,485 - cli.main - INFO - Starting plano model server and plano gateway
+2024-12-05 16:56:28,485 - planoai.utils - INFO - Schema validation successful!
+2024-12-05 16:56:28,485 - planoai.main - INFO - Starting plano model server and plano gateway
 ...
-2024-12-05 16:56:51,647 - cli.core - INFO - Container is healthy!
+2024-12-05 16:56:51,647 - planoai.core - INFO - Container is healthy!
 
 Once the gateway is up, you can start interacting with it at port 10000 using the OpenAI chat completion API.
 
@@ -2617,7 +3332,7 @@ Step 3. Interacting with gateway using curl command
 Here is a sample curl command you can use to interact:
 
 $ curl --header 'Content-Type: application/json' \
-  --data '{"messages": [{"role": "user","content": "what is exchange rate for gbp"}], "model": "none"}' \
+  --data '{"messages": [{"role": "user","content": "what is exchange rate for gbp"}], "model": "gpt-4o"}' \
   http://localhost:10000/v1/chat/completions | jq ".choices[0].message.content"
 
 "As of the date provided in your context, December 5, 2024, the exchange rate for GBP (British Pound) from USD (United States Dollar) is 0.78558. This means that 1 USD is equivalent to 0.78558 GBP."
@@ -2625,94 +3340,10 @@ $ curl --header 'Content-Type: application/json' \
 And to get the list of supported currencies:
 
 $ curl --header 'Content-Type: application/json' \
-  --data '{"messages": [{"role": "user","content": "show me list of currencies that are supported for conversion"}], "model": "none"}' \
+  --data '{"messages": [{"role": "user","content": "show me list of currencies that are supported for conversion"}], "model": "gpt-4o"}' \
   http://localhost:10000/v1/chat/completions | jq ".choices[0].message.content"
 
 "Here is a list of the currencies that are supported for conversion from USD, along with their symbols:\n\n1. AUD - Australian Dollar\n2. BGN - Bulgarian Lev\n3. BRL - Brazilian Real\n4. CAD - Canadian Dollar\n5. CHF - Swiss Franc\n6. CNY - Chinese Renminbi Yuan\n7. CZK - Czech Koruna\n8. DKK - Danish Krone\n9. EUR - Euro\n10. GBP - British Pound\n11. HKD - Hong Kong Dollar\n12. HUF - Hungarian Forint\n13. IDR - Indonesian Rupiah\n14. ILS - Israeli New Sheqel\n15. INR - Indian Rupee\n16. ISK - Icelandic Króna\n17. JPY - Japanese Yen\n18. KRW - South Korean Won\n19. MXN - Mexican Peso\n20. MYR - Malaysian Ringgit\n21. NOK - Norwegian Krone\n22. NZD - New Zealand Dollar\n23. PHP - Philippine Peso\n24. PLN - Polish Złoty\n25. RON - Romanian Leu\n26. SEK - Swedish Krona\n27. SGD - Singapore Dollar\n28. THB - Thai Baht\n29. TRY - Turkish Lira\n30. USD - United States Dollar\n31. ZAR - South African Rand\n\nIf you want to convert USD to any of these currencies, you can select the one you are interested in."
-
-
-
-Use Plano as a Model Proxy (Gateway)
-
-Step 1. Create plano config file
-
-Plano operates based on a configuration file where you can define LLM providers, prompt targets, guardrails, etc. Below is an example configuration that defines OpenAI and Anthropic LLM providers.
-
-Create plano_config.yaml file with the following content:
-
-version: v0.3.0
-
-listeners:
-  - type: model
-    name: model_1
-    address: 0.0.0.0
-    port: 12000
-
-model_providers:
-
-  - access_key: $OPENAI_API_KEY
-    model: openai/gpt-4o
-    default: true
-
-  - access_key: $ANTHROPIC_API_KEY
-    model: anthropic/claude-sonnet-4-5
-
-Step 2. Start plano
-
-Once the config file is created, ensure that you have environment variables set up for ANTHROPIC_API_KEY and OPENAI_API_KEY (or these are defined in a .env file).
-
-Start Plano:
-
-$ planoai up plano_config.yaml
-2024-12-05 11:24:51,288 - cli.main - INFO - Starting plano cli version: 0.4.0
-2024-12-05 11:24:51,825 - cli.utils - INFO - Schema validation successful!
-2024-12-05 11:24:51,825 - cli.main - INFO - Starting plano
-...
-2024-12-05 11:25:16,131 - cli.core - INFO - Container is healthy!
-
-Step 3: Interact with LLM
-
-Step 3.1: Using OpenAI Python client
-
-Make outbound calls via the Plano gateway:
-
-from openai import OpenAI
-
-# Use the OpenAI client as usual
-client = OpenAI(
-  # No need to set a specific openai.api_key since it's configured in Plano's gateway
-  api_key='--',
-  # Set the OpenAI API base URL to the Plano gateway endpoint
-  base_url="http://127.0.0.1:12000/v1"
-)
-
-response = client.chat.completions.create(
-    # we select model from plano_config file
-    model="--",
-    messages=[{"role": "user", "content": "What is the capital of France?"}],
-)
-
-print("OpenAI Response:", response.choices[0].message.content)
-
-Step 3.2: Using curl command
-
-$ curl --header 'Content-Type: application/json' \
-  --data '{"messages": [{"role": "user","content": "What is the capital of France?"}], "model": "none"}' \
-  http://localhost:12000/v1/chat/completions
-
-{
-  ...
-  "model": "gpt-4o-2024-08-06",
-  "choices": [
-    {
-      ...
-      "messages": {
-        "role": "assistant",
-        "content": "The capital of France is Paris.",
-      },
-    }
-  ],
-}
 
 Next Steps
 
@@ -3381,6 +4012,227 @@ tools.
 
 
 
+Understanding Plano Traces
+
+Plano creates structured traces that capture the complete flow of requests through your AI system. Each trace consists of multiple spans representing different stages of processing.
+
+Inbound Request Handling
+
+When a request enters Plano, it creates an inbound span (plano(inbound)) that represents the initial request reception and processing. This span captures:
+
+HTTP request details (method, path, headers)
+
+Request payload size
+
+Initial validation and authentication
+
+Orchestration & Routing
+
+For agent systems, Plano performs intelligent routing through orchestration spans:
+
+Agent Orchestration (plano(orchestrator)): When multiple agents are available, Plano uses an LLM to analyze the user’s intent and select the most appropriate agent. This span captures the orchestration decision-making process.
+
+LLM Routing (plano(routing)): For direct LLM requests, Plano determines the optimal endpoint based on your routing strategy (round-robin, least-latency, cost-optimized). This span includes:
+
+Routing strategy used
+
+Selected upstream endpoint
+
+Route determination time
+
+Fallback indicators (if applicable)
+
+Agent Processing
+
+When requests are routed to agents, Plano creates spans for agent execution:
+
+Agent Filter Chains (plano(filter)): If filters are configured (guardrails, context enrichment, query rewriting), each filter execution is captured in its own span, showing the transformation pipeline.
+
+Agent Execution (plano(agent)): The main agent processing span that captures the agent’s work, including any tools invoked and intermediate reasoning steps.
+
+Outbound LLM Calls
+
+All LLM calls—whether from Plano’s routing layer or from agents—are traced with LLM spans (plano(llm)) that capture:
+
+Model name and provider (e.g., gpt-4, claude-3-sonnet)
+
+Request parameters (temperature, max_tokens, top_p)
+
+Token usage (prompt_tokens, completion_tokens)
+
+Streaming indicators and time-to-first-token
+
+Response metadata
+
+Example Span Attributes:
+
+# LLM call span
+llm.model = "gpt-4"
+llm.provider = "openai"
+llm.usage.prompt_tokens = 150
+llm.usage.completion_tokens = 75
+llm.duration_ms = 1250
+llm.time_to_first_token = 320
+
+Handoff to Upstream Services
+
+When Plano forwards requests to upstream services (agents, APIs, or LLM providers), it creates handoff spans (plano(handoff)) that capture:
+
+Upstream endpoint URL
+
+Request/response sizes
+
+HTTP status codes
+
+Upstream response times
+
+This creates a complete end-to-end trace showing the full request lifecycle through all system components.
+
+Behavioral Signals in Traces
+
+Plano automatically enriches OpenTelemetry traces with ../../concepts/signals — behavioral quality indicators computed from conversation patterns. These signals are attached as span attributes, providing immediate visibility into interaction quality.
+
+What Signals Provide
+
+Signals act as early warning indicators embedded in your traces:
+
+Quality Assessment: Overall interaction quality (Excellent/Good/Neutral/Poor/Severe)
+
+Efficiency Metrics: Turn count, efficiency scores, repair frequency
+
+User Sentiment: Frustration indicators, positive feedback, escalation requests
+
+Agent Behavior: Repetition detection, looping patterns
+
+Visual Flag Markers
+
+When concerning signals are detected (frustration, looping, escalation, or poor/severe quality), Plano automatically appends a flag marker 🚩 to the span’s operation name. This makes problematic traces immediately visible in your tracing UI without requiring additional queries.
+
+Example Span with Signals:
+
+# Span name: "POST /v1/chat/completions gpt-4 🚩"
+# Standard LLM attributes:
+llm.model = "gpt-4"
+llm.usage.total_tokens = 225
+
+# Behavioral signal attributes:
+signals.quality = "Severe"
+signals.turn_count = 15
+signals.efficiency_score = 0.234
+signals.frustration.severity = 3
+signals.escalation.requested = "true"
+
+Querying Signal Data
+
+In your observability platform (Jaeger, Grafana Tempo, Datadog, etc.), filter traces by signal attributes:
+
+Find severe interactions: signals.quality = "Severe"
+
+Find frustrated users: signals.frustration.severity >= 2
+
+Find inefficient flows: signals.efficiency_score < 0.5
+
+Find escalations: signals.escalation.requested = "true"
+
+For complete details on all available signals, detection methods, and best practices, see the ../../concepts/signals guide.
+
+Custom Span Attributes
+
+Plano can automatically attach custom span attributes derived from request headers and static attributes
+defined in configuration. This lets you stamp
+traces with identifiers like workspace, tenant, or user IDs without changing application code or adding
+custom instrumentation.
+
+Why This Is Useful
+
+Tenant-aware debugging: Filter traces by workspace.id or tenant.id.
+
+Customer-specific visibility: Attribute performance or errors to a specific customer.
+
+Low overhead: No code changes in agents or clients—just headers.
+
+How It Works
+
+You configure one or more header prefixes. Any incoming HTTP header whose name starts with one of these
+prefixes is captured as a span attribute. You can also provide static attributes that are always injected.
+
+The prefix is only for matching, not the resulting attribute key.
+
+The attribute key is the header name with the prefix removed, then hyphens converted to dots.
+
+Custom span attributes are attached to LLM spans when handling /v1/... requests via llm_chat. For orchestrator requests to /agents/...,
+these attributes are added to both the orchestrator selection span and to each agent span created by agent_chat.
+
+Example
+
+Configured prefix:
+
+tracing:
+  span_attributes:
+    header_prefixes:
+      - x-katanemo-
+
+Incoming headers:
+
+X-Katanemo-Workspace-Id: ws_123
+X-Katanemo-Tenant-Id: ten_456
+
+Resulting span attributes:
+
+workspace.id = "ws_123"
+tenant.id = "ten_456"
+
+Configuration
+
+Add the prefix list under tracing in your config:
+
+tracing:
+  random_sampling: 100
+  span_attributes:
+    header_prefixes:
+      - x-katanemo-
+    static:
+      environment: production
+      service.version: "1.0.0"
+
+Static attributes are always injected alongside any header-derived attributes. If a header-derived
+attribute key matches a static key, the header value overrides the static value.
+
+You can provide multiple prefixes:
+
+tracing:
+  span_attributes:
+    header_prefixes:
+      - x-katanemo-
+      - x-tenant-
+    static:
+      environment: production
+      service.version: "1.0.0"
+
+Notes and Examples
+
+Prefix must match exactly: katanemo- does not match x-katanemo- headers.
+
+Trailing dash is recommended: Without it, x-katanemo would also match x-katanemo-foo and
+x-katanemofoo.
+
+Keys are always strings: Values are captured as string attributes.
+
+Prefix mismatch example
+
+Config:
+
+tracing:
+  span_attributes:
+    header_prefixes:
+      - x-katanemo-
+
+Request headers:
+
+X-Other-User-Id: usr_999
+
+Result: no attributes are captured from X-Other-User-Id.
+
 Benefits of Using Traceparent Headers
 
 Standardization: The W3C Trace Context standard ensures compatibility across ecosystem tools, allowing
@@ -3408,6 +4260,74 @@ Forward the traceparent header to downstream services.
 
 Sampling Policy: The 100 in random_sampling: 100 means that all the requests as sampled for tracing.
 You can adjust this value from 0-100.
+
+Tracing with the CLI
+
+The Plano CLI ships with a local OTLP/gRPC listener and a trace viewer so you can inspect spans without wiring a full observability backend. This is ideal for development, debugging, and quick QA.
+
+Quick Start
+
+You can enable tracing in either of these ways:
+
+Start the local listener explicitly:
+
+$ planoai trace listen
+
+Or start Plano with tracing enabled (auto-starts the local OTLP listener):
+
+$ planoai up --with-tracing
+
+# Optional: choose a different listener port
+$ planoai up --with-tracing --tracing-port 4318
+
+Send requests through Plano as usual. The listener accepts OTLP/gRPC on:
+
+0.0.0.0:4317 (default)
+
+View the most recent trace:
+
+$ planoai trace
+
+Inspect and Filter Traces
+
+List available trace IDs:
+
+$ planoai trace --list
+
+Open a specific trace (full or short trace ID):
+
+$ planoai trace 7f4e9a1c
+$ planoai trace 7f4e9a1c0d9d4a0bb9bf5a8a7d13f62a
+
+Filter by attributes and time window:
+
+$ planoai trace --where llm.model=gpt-4o-mini --since 30m
+$ planoai trace --filter "http.*" --limit 5
+
+Return JSON for automation:
+
+$ planoai trace --json
+$ planoai trace --list --json
+
+Show full span attributes (disable default compact view):
+
+$ planoai trace --verbose
+$ planoai trace -v
+
+Point the CLI at a different local listener port:
+
+$ export PLANO_TRACE_PORT=50051
+$ planoai trace --list
+
+Notes
+
+--where accepts repeatable key=value filters and uses AND semantics.
+
+--filter supports wildcards (*) to limit displayed attributes.
+
+--no-interactive disables prompts when listing traces.
+
+By default, inbound/outbound spans use a compact attribute view.
 
 Trace Propagation
 
@@ -3630,6 +4550,10 @@ tracing efficiently. This approach simplifies the process of collecting and anal
 tools like AWS X-Ray and Datadog, enhancing observability and facilitating faster debugging and optimization.
 
 Additional Resources
+
+For full command documentation (including planoai trace and all other CLI commands), see cli_reference.
+
+External References
 
 OpenTelemetry Documentation
 
@@ -4713,7 +5637,7 @@ export DB_PASSWORD="your-secure-password"
 # Run Plano or config validation
 ./plano
 
-Special Characters in Passwords: If your password contains special characters like #, @, or &, you must URL-encode them in the connection string. For example, MyPass#123 becomes MyPass%23123.
+Special Characters in Passwords: If your password contains special characters like #, @, or &, you must URL-encode them in the connection string. For example, P@ss#123 becomes P%40ss%23123.
 
 Supabase Connection Strings
 
@@ -4747,12 +5671,12 @@ Example Configuration
 
 state_storage:
   type: postgres
-  connection_string: "postgresql://postgres.myproject:$DB_PASSWORD@aws-0-us-west-2.pooler.supabase.com:5432/postgres"
+  connection_string: "postgresql://postgres.[YOUR-PROJECT-REF]:$DB_PASSWORD@aws-0-[REGION].pooler.supabase.com:5432/postgres"
 
 Then set the environment variable:
 
-# If your password is "MyPass#123", encode it as "MyPass%23123"
-export DB_PASSWORD="MyPass%23123"
+# If your password is "P@ss#123", encode it as "P%40ss%23123"
+export DB_PASSWORD="<your-url-encoded-password>"
 
 Troubleshooting
 
@@ -4812,7 +5736,7 @@ Welcome to Plano!
 
 
 
-Plano is delivery infrastructure for agentic apps. A models-native proxy server and data plane designed to help you build agents faster, and deliver them reliably to production.
+Plano is delivery infrastructure for agentic apps. An AI-native proxy server and data plane designed to help you build agents faster, and deliver them reliably to production.
 
 Plano pulls out the rote plumbing work (aka “hidden AI middleware”) and decouples you from brittle, ever‑changing framework abstractions. It centralizes what shouldn’t be bespoke in every codebase like agent routing and orchestration, rich agentic signals and traces for continuous improvement, guardrail filters for safety and moderation, and smart LLM routing APIs for UX and DX agility. Use any language or AI framework, and ship agents to production faster with Plano.
 
@@ -4834,6 +5758,286 @@ Resources
 
 ---
 
+CLI Reference
+-------------
+Doc: resources/cli_reference
+
+CLI Reference
+
+This reference documents the full planoai command-line interface for day-to-day development, local testing, and operational workflows.
+Use this page as the canonical source for command syntax, options, and recommended usage patterns.
+
+Quick Navigation
+
+cli_reference_global
+
+cli_reference_up
+
+cli_reference_down
+
+cli_reference_build
+
+cli_reference_logs
+
+cli_reference_init
+
+cli_reference_trace
+
+cli_reference_prompt_targets
+
+cli_reference_cli_agent
+
+
+
+Global CLI Usage
+
+Command
+
+$ planoai [COMMAND] [OPTIONS]
+
+Common global options
+
+--help: Show the top-level command menu.
+
+--version: Show installed CLI version and update status.
+
+Help patterns
+
+$ planoai --help
+$ planoai trace --help
+$ planoai init --help
+
+planoai default command screenshot
+
+planoai command showing the top-level command menu.
+
+
+
+planoai up
+
+Start Plano using a configuration file.
+
+Synopsis
+
+$ planoai up [FILE] [--path <dir>] [--foreground] [--with-tracing] [--tracing-port <port>]
+
+Arguments
+
+FILE (optional): explicit path to config file.
+
+Options
+
+--path <dir>: directory to search for config (default .).
+
+--foreground: run Plano in foreground.
+
+--with-tracing: start local OTLP/gRPC trace collector.
+
+--tracing-port <port>: collector port (default 4317).
+
+If you use --with-tracing, ensure that port 4317 is free and not already in use by Jaeger or any other observability services or processes. If port 4317 is occupied, the command will fail to start the trace collector.
+
+Examples
+
+$ planoai up config.yaml
+$ planoai up --path ./deploy
+$ planoai up --with-tracing
+$ planoai up --with-tracing --tracing-port 4318
+
+
+
+planoai down
+
+Stop Plano (container/process stack managed by the CLI).
+
+Synopsis
+
+$ planoai down
+
+
+
+planoai build
+
+Build Plano Docker image from repository source.
+
+Synopsis
+
+$ planoai build
+
+
+
+planoai logs
+
+Stream Plano logs.
+
+Synopsis
+
+$ planoai logs [--follow] [--debug]
+
+Options
+
+--follow: stream logs continuously.
+
+--debug: include additional gateway/debug streams.
+
+Examples
+
+$ planoai logs
+$ planoai logs --follow
+$ planoai logs --follow --debug
+
+
+
+planoai init
+
+Generate a new config.yaml using an interactive wizard, built-in templates, or a clean empty file.
+
+Synopsis
+
+$ planoai init [--template <id> | --clean] [--output <path>] [--force] [--list-templates]
+
+Options
+
+--template <id>: create config from a built-in template id.
+
+--clean: create an empty config file.
+
+--output, -o <path>: output path (default config.yaml).
+
+--force: overwrite existing output file.
+
+--list-templates: print available template IDs and exit.
+
+Examples
+
+$ planoai init
+$ planoai init --list-templates
+$ planoai init --template coding_agent_routing
+$ planoai init --clean --output ./config/config.yaml
+
+planoai init command screenshot
+
+planoai init --list-templates showing built-in starter templates.
+
+
+
+planoai trace
+
+Inspect request traces from the local OTLP listener.
+
+Synopsis
+
+$ planoai trace [TARGET] [OPTIONS]
+
+Targets
+
+last (default): show most recent trace.
+
+any: consider all traces (interactive selection when terminal supports it).
+
+listen: start local OTLP listener.
+
+down: stop background listener.
+
+<trace-id>: full 32-hex trace id.
+
+<short-id>: first 8 hex chars of trace id.
+
+Display options
+
+--filter <pattern>: keep only matching attribute keys (supports * via “glob” syntax).
+
+--where <key=value>: locate traces containing key/value (repeatable, AND semantics).
+
+--list: list trace IDs instead of full trace output (use with --no-interactive to fetch plain-text trace IDs only).
+
+--no-interactive: disable interactive selection prompts.
+
+--limit <n>: limit returned traces.
+
+--since <window>: lookback window such as 5m, 2h, 1d.
+
+--json: emit JSON payloads.
+
+--verbose, -v: show full attribute output (disable compact trimming). Useful for debugging internal attributes.
+
+Listener options (for ``TARGET=listen``)
+
+--host <host>: bind host (default 0.0.0.0).
+
+--port <port>: bind port (default 4317).
+
+When using listen, ensure that port 4317 is free and not already in use by Jaeger or any other observability services or processes. If port 4317 is occupied, the command will fail to start the trace collector. You cannot use other services on the same port when running.
+
+Environment
+
+PLANO_TRACE_PORT: query port used by planoai trace when reading traces (default 4317).
+
+Examples
+
+# Start/stop listener
+$ planoai trace listen
+$ planoai trace down
+
+# Basic inspection
+$ planoai trace
+$ planoai trace 7f4e9a1c
+$ planoai trace 7f4e9a1c0d9d4a0bb9bf5a8a7d13f62a
+
+# Filtering and automation
+$ planoai trace --where llm.model=openai/gpt-5.2 --since 30m
+$ planoai trace --filter "http.*"
+$ planoai trace --list --limit 5
+$ planoai trace --where http.status_code=500 --json
+
+planoai trace command screenshot
+
+planoai trace command showing trace inspection and filtering capabilities.
+
+Operational notes
+
+--host and --port are valid only when TARGET is listen.
+
+--list cannot be combined with a specific trace-id target.
+
+
+
+planoai prompt_targets
+
+Generate prompt-target metadata from Python methods.
+
+Synopsis
+
+$ planoai prompt_targets --file <python-file>
+
+Options
+
+--file, --f <python-file>: required path to a .py source file.
+
+
+
+planoai cli_agent
+
+Start an interactive CLI agent session against a running Plano deployment.
+
+Synopsis
+
+$ planoai cli_agent claude [FILE] [--path <dir>] [--settings '<json>']
+
+Arguments
+
+type: currently claude.
+
+FILE (optional): config file path.
+
+Options
+
+--path <dir>: directory containing config file.
+
+--settings <json>: JSON settings payload for agent startup.
+
+---
+
 Configuration Reference
 -----------------------
 Doc: resources/configuration_reference
@@ -4841,33 +6045,29 @@ Doc: resources/configuration_reference
 Configuration Reference
 
 The following is a complete reference of the plano_config.yml that controls the behavior of a single instance of
-the Arch gateway. This where you enable capabilities like routing to upstream LLm providers, defining prompt_targets
+the Plano gateway. This where you enable capabilities like routing to upstream LLm providers, defining prompt_targets
 where prompts get routed to, apply guardrails, and enable critical agent observability features.
 
 Plano Configuration - Full Reference
 
-
-# Arch Gateway configuration version
+# Plano Gateway configuration version
 version: v0.3.0
-
 
 # External HTTP agents - API type is controlled by request path (/v1/responses, /v1/messages, /v1/chat/completions)
 agents:
-  - id: weather_agent  # Example agent for weather
+  - id: weather_agent # Example agent for weather
     url: http://host.docker.internal:10510
 
-  - id: flight_agent   # Example agent for flights
+  - id: flight_agent # Example agent for flights
     url: http://host.docker.internal:10520
-
 
 # MCP filters applied to requests/responses (e.g., input validation, query rewriting)
 filters:
-  - id: input_guards  # Example filter for input validation
+  - id: input_guards # Example filter for input validation
     url: http://host.docker.internal:10500
     # type: mcp (default)
     # transport: streamable-http (default)
     # tool: input_guards (default - same as filter id)
-
 
 # LLM provider configurations with API keys and model routing
 model_providers:
@@ -4884,6 +6084,12 @@ model_providers:
   - model: mistral/ministral-3b-latest
     access_key: $MISTRAL_API_KEY
 
+  # Example: Passthrough authentication for LiteLLM or similar proxies
+  # When passthrough_auth is true, client's Authorization header is forwarded
+  # instead of using the configured access_key
+  - model: openai/gpt-4o-litellm
+    base_url: https://litellm.example.com
+    passthrough_auth: true
 
 # Model aliases - use friendly names instead of full provider model names
 model_aliases:
@@ -4892,7 +6098,6 @@ model_aliases:
 
   smart-llm:
     target: gpt-4o
-
 
 # HTTP listeners - entry points for agent routing, prompt targets, and direct LLM access
 listeners:
@@ -4921,7 +6126,6 @@ listeners:
     port: 10000
     # This listener is used for prompt_targets and function calling
 
-
 # Reusable service endpoints
 endpoints:
   app_server:
@@ -4930,7 +6134,6 @@ endpoints:
 
   mistral_local:
     endpoint: 127.0.0.1:8001
-
 
 # Prompt targets for function calling and API orchestration
 prompt_targets:
@@ -4950,7 +6153,6 @@ prompt_targets:
       name: app_server
       path: /weather
       http_method: POST
-
 
 # OpenTelemetry tracing configuration
 tracing:
@@ -4982,7 +6184,7 @@ Create a docker-compose.yml file with the following configuration:
 # docker-compose.yml
 services:
   plano:
-    image: katanemo/plano:0.4.0
+    image: katanemo/plano:0.4.9
     container_name: plano
     ports:
       - "10000:10000" # ingress (client -> plano)
@@ -5146,6 +6348,114 @@ Also, Plano utilizes Envoy event-based thread model. A main thread is responsibl
 Worker threads rarely share state and operate in a trivially parallel fashion. This threading model
 enables scaling to very high core count CPUs.
 
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                                    P L A N O                                        │
+│                  AI-native proxy and data plane for agentic applications            │
+│                                                                                     │
+│                              ┌─────────────────────┐                                │
+│                              │    YOUR CLIENTS     │                                │
+│                              │ (apps· agents · UI) │                                │
+│                              └──────────┬──────────┘                                │
+│                                         │                                           │
+│          ┌──────────────────────────────┼──────────────────────────┐                │
+│          │                              │                          │                │
+│   ┌──────▼──────────┐         ┌─────────▼────────┐       ┌────────▼─────────┐       │
+│   │  Agent Port(s)  │         │   Model Port     │       │  Function-Call   │       │
+│   │  :8001+         │         │   :12000         │       │  Port  :10000    │       │
+│   │                 │         │                  │       │                  │       │
+│   │  route your     │         │  direct LLM      │       │  prompt-target / │       │
+│   │  prompts to     │         │  calls with      │       │  tool dispatch   │       │
+│   │  the right      │         │  model-alias     │       │  with parameter  │       │
+│   │  agent          │         │  translation     │       │  extraction      │       │
+│   └──────┬──────────┘         └─────────┬────────┘       └────────┬─────────┘       │
+│          └──────────────────────────────┼─────────────────────────┘                 │
+│                                         │                                           │
+│  ╔══════════════════════════════════════▼══════════════════════════════════════╗    │
+│  ║            BRIGHTSTAFF (SUBSYSTEM) —  Agentic Control Plane                 ║    │
+│  ║            Async · non-blocking · parallel per-request Tokio tasks          ║    │
+│  ║                                                                             ║    │
+│  ║   ┌─────────────────────────────────────────────────────────────────────┐   ║    │
+│  ║   │  Agentic ROUTER                                                     │   ║    │
+│  ║   │  Reads listener config · maps incoming request to execution path    │   ║    │
+│  ║   │                                                                     │   ║    │
+│  ║   │   /agents/*  ──────────────────────►  AGENT PATH                    │   ║    │
+│  ║   │   /v1/chat|messages|responses ──────►  LLM PATH                     │   ║    │
+│  ║   └─────────────────────────────────────────────────────────────────────┘   ║    │
+│  ║                                                                             ║    │
+│  ║   ─────────────────────── AGENT PATH ────────────────────────────────────   ║    │
+│  ║                                                                             ║    │
+│  ║   ┌──────────────────────────────────────────────────────────────────────┐  ║    │
+│  ║   │  FILTER CHAIN                        (pipeline_processor.rs)         │  ║    │
+│  ║   │                                                                      │  ║    │
+│  ║   │  prompt ──► [input_guards] ──► [query_rewrite] ──► [context_builder] │  ║    │
+│  ║   │             guardrails       prompt mutation      RAG / enrichment   │  ║    │
+│  ║   │                                                                      │  ║    │
+│  ║   │  Each filter: HTTP or MCP · can mutate, enrich, or short-circuit     │  ║    │
+│  ║   └──────────────────────────────────┬───────────────────────────────────┘  ║    │
+│  ║                                      │                                      ║    │
+│  ║   ┌──────────────────────────────────▼───────────────────────────────────┐  ║    │
+│  ║   │  AGENT ORCHESTRATOR               (agent_chat_completions.rs)        │  ║    │
+│  ║   │  Select agent · forward enriched request · manage conversation state │  ║    │
+│  ║   │  Stream response back · multi-turn aware                             │  ║    │
+│  ║   └──────────────────────────────────────────────────────────────────────┘  ║    │
+│  ║                                                                             ║    │
+│  ║   ─────────────────────── LLM PATH ──────────────────────────────────────   ║    │
+│  ║                                                                             ║    │
+│  ║   ┌──────────────────────────────────────────────────────────────────────┐  ║    │
+│  ║   │  MODEL ROUTER                       (llm_router.rs + router_chat.rs) │  ║    │
+│  ║   │  Model alias resolution · preference-based provider selection        │  ║    │
+│  ║   │  "fast-llm" → gpt-4o-mini  ·  "smart-llm" → gpt-4o                   │  ║    │
+│  ║   └──────────────────────────────────────────────────────────────────────┘  ║    │
+│  ║                                                                             ║    │
+│  ║   ─────────────────── ALWAYS ON (every request) ─────────────────────────   ║    │
+│  ║                                                                             ║    │
+│  ║   ┌────────────────────┐  ┌─────────────────────┐  ┌──────────────────┐     ║    │
+│  ║   │  SIGNALS ANALYZER  │  │   STATE STORAGE     │  │  OTEL TRACING    │     ║    │
+│  ║   │  loop detection    │  │   memory / postgres │  │  traceparent     │     ║    │
+│  ║   │  repetition score  │  │   /v1/responses     │  │  span injection  │     ║    │
+│  ║   │  quality indicators│  │   stateful API      │  │  trace export    │     ║    │
+│  ║   └────────────────────┘  └─────────────────────┘  └──────────────────┘     ║    │
+│  ╚═════════════════════════════════════╤═══════════════════════════════════════╝    │
+│                                        │                                            │
+│  ┌─────────────────────────────────────▼──────────────────────────────────────┐     │
+│  │  LLM GATEWAY   (llm_gateway.wasm — embedded in Envoy egress filter chain)  │     │
+│  │                                                                            │     │
+│  │  Rate limiting  ·  Provider format translation  ·  TTFT metrics            │     │
+│  │  OpenAI → Anthropic · Gemini · Mistral · Groq · DeepSeek · xAI · Bedrock   │     │
+│  │                                                                            │     │
+│  │  Envoy handles beneath this: TLS origination · SNI · retry + backoff       │     │
+│  │  connection pooling · LOGICAL_DNS · structured access logs                 │     │
+│  └─────────────────────────────────────┬──────────────────────────────────────┘     │
+│                                         │                                           │
+└─────────────────────────────────────────┼───────────────────────────────────────────┘
+                                          │
+              ┌───────────────────────────┼────────────────────────────┐
+              │                           │                             │
+    ┌─────────▼──────────┐   ┌────────────▼──────────┐   ┌────────────▼──────────┐
+    │  LLM PROVIDERS     │   │  EXTERNAL AGENTS      │   │  TOOL / API BACKENDS  │
+    │  OpenAI · Anthropic│   │  (filter chain svc)   │   │  (endpoint clusters)  │
+    │  Gemini · Mistral  │   │  HTTP / MCP  :10500+  │   │  user-defined hosts   │
+    │  Groq · DeepSeek   │   │  input_guards         │   │                       │
+    │  xAI · Together.ai │   │  query_rewriter       │   │                       │
+    └────────────────────┘   │  context_builder      │   └───────────────────────┘
+                             └───────────────────────┘
+
+
+  HOW PLANO IS DIFFERENT
+  ─────────────────────────────────────────────────────────────────────────────────
+  Brightstaff is the entire agentic brain — one async Rust binary that handles
+  agent selection, filter chain orchestration, model routing, state, and signals
+  without blocking a thread per request.
+
+  Filter chains are programmable dataplane steps — reusable HTTP/MCP services
+  you wire into any agent, executing in-path before the agent ever sees the prompt.
+
+  The LLM gateway is a zero-overhead WASM plugin inside Envoy — format translation
+  and rate limiting happen in-process with the proxy, not as a separate service hop.
+
+  Envoy provides the transport substrate (TLS, HTTP codecs, retries, connection
+  pools, access logs) so Plano never reimplements solved infrastructure problems.
+
 Request Flow (Ingress)
 
 A brief outline of the lifecycle of a request and response using the example configuration above:
@@ -5262,7 +6572,7 @@ prompt_targets:
     endpoint:
       name: app_server
       path: /agent/summary
-    # Arch uses the default LLM and treats the response from the endpoint as the prompt to send to the LLM
+    # Plano uses the default LLM and treats the response from the endpoint as the prompt to send to the LLM
     auto_llm_dispatch_on_response: true
     # override system prompt for this prompt target
     system_prompt: You are a helpful information extraction assistant. Use the information that is provided to you.
@@ -5283,7 +6593,7 @@ prompt_targets:
         default: false
         enum: [true, false]
 
-# Arch creates a round-robin load balancing between different endpoints, managed via the cluster subsystem.
+# Plano creates a round-robin load balancing between different endpoints, managed via the cluster subsystem.
 endpoints:
   app_server:
     # value could be ip address or a hostname with port
