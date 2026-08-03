@@ -1,6 +1,6 @@
-Plano Docs v0.4.22
+Plano Docs v0.4.30
 llms.txt (auto-generated)
-Generated (UTC): 2026-05-20T16:35:21.295146+00:00
+Generated (UTC): 2026-08-03T10:31:56.194478+00:00
 
 Table of contents
 - Agents (concepts/agents)
@@ -1189,7 +1189,7 @@ Plano provides first-class support for multiple LLM providers through native int
 
 Model Support: Plano supports all chat models from each provider, not just the examples shown in this guide. The configurations below demonstrate common models for reference, but you can use any chat model available from your chosen provider.
 
-Please refer to the quuickstart guide here to configure and use LLM providers via common client libraries like OpenAI and Anthropic Python SDKs, or via direct HTTP/cURL requests.
+Please refer to the quickstart guide here to configure and use LLM providers via common client libraries like OpenAI and Anthropic Python SDKs, or via direct HTTP/cURL requests.
 
 Configuration Structure
 
@@ -1402,14 +1402,14 @@ model_providers:
   - model: anthropic/*
     access_key: $ANTHROPIC_API_KEY
 
-  - model: anthropic/claude-sonnet-4-20250514
+  - model: anthropic/claude-sonnet-4-6
     access_key: $ANTHROPIC_PROD_API_KEY
 
 routing_preferences:
   - name: code_generation
     description: generating new code snippets, functions, or boilerplate based on user prompts or requirements
     models:
-      - anthropic/claude-sonnet-4-20250514
+      - anthropic/claude-sonnet-4-6
 
 DeepSeek
 
@@ -1500,7 +1500,6 @@ mistral/ministral-3b-latest
 
 Compact model
 
-Configuration Examples:
 Configuration Examples:
 
 llm_providers:
@@ -1696,7 +1695,7 @@ API Endpoint: /v1/chat/completions
 
 Authentication: API Key - Get your Moonshot AI API key from Moonshot AI Platform.
 
-Supported Chat Models: All Moonshot AI chat models including Kimi K2, Moonshot v1, and all future releases.
+Supported Chat Models: All Moonshot AI chat models including Kimi K3, Kimi K2, Moonshot v1, and all future releases.
 
 
 
@@ -1710,11 +1709,29 @@ Model ID for Config
 
 Description
 
-Kimi K2 Preview
+Kimi K3
 
-moonshotai/kimi-k2-0905-preview
+moonshotai/kimi-k3
 
-Foundation model optimized for agentic tasks with 32B activated parameters
+Flagship multimodal reasoning model with a 1M-token context window
+
+Kimi for Coding
+
+moonshotai/kimi-for-coding
+
+Kimi Code API model for agentic coding (use with base_url: https://api.kimi.com/coding/v1)
+
+Kimi K2.6
+
+moonshotai/kimi-k2.6
+
+Latest K2-line foundation model optimized for agentic tasks
+
+Kimi K2.5
+
+moonshotai/kimi-k2.5
+
+Previous K2-line foundation model optimized for agentic tasks
 
 Moonshot v1 32K
 
@@ -1731,8 +1748,19 @@ Long context model with 128K tokens
 Configuration Examples:
 
 llm_providers:
+  # Flagship reasoning model with a 1M-token context window
+  - model: moonshotai/kimi-k3
+    access_key: $MOONSHOTAI_API_KEY
+
+  # Kimi Code API (Claude Code / agentic clients via Plano translation)
+  - model: moonshotai/kimi-for-coding
+    access_key: $MOONSHOTAI_API_KEY
+    base_url: https://api.kimi.com/coding/v1
+    headers:
+      User-Agent: "KimiCLI/1.3"
+
   # Latest K2 models for agentic tasks
-  - model: moonshotai/kimi-k2-0905-preview
+  - model: moonshotai/kimi-k2.6
     access_key: $MOONSHOTAI_API_KEY
 
   # V1 models with different context lengths
@@ -1741,6 +1769,14 @@ llm_providers:
 
   - model: moonshotai/moonshot-v1-128k
     access_key: $MOONSHOTAI_API_KEY
+
+Kimi K3 always runs in thinking mode and pins temperature, top_p, n,
+presence_penalty, and frequency_penalty to fixed values. Plano strips these
+fields from requests sent to Moonshot’s API so clients that set them do not fail.
+Use the reasoning_effort field to control reasoning depth instead. K3 accepts
+low, high, and max (default max); Plano maps other OpenAI-style
+values onto the nearest supported level, so none and minimal become low
+and medium becomes high.
 
 Zhipu AI
 
@@ -2099,7 +2135,7 @@ model_providers:
 
   # Override specific model with custom settings
   # This model will NOT be included in the wildcard expansion above
-  - model: anthropic/claude-sonnet-4-20250514
+  - model: anthropic/claude-sonnet-4-6
     access_key: $ANTHROPIC_PROD_API_KEY
 
   # Another specific override
@@ -2110,7 +2146,7 @@ routing_preferences:
   - name: code_generation
     description: generating new code snippets, functions, or boilerplate based on user prompts or requirements
     models:
-      - anthropic/claude-sonnet-4-20250514
+      - anthropic/claude-sonnet-4-6
 
 Custom Provider Wildcards:
 
@@ -2280,6 +2316,13 @@ Prompt Target
 Doc: concepts/prompt_target
 
 Prompt Target
+
+Deprecated since version v0.4.22: Prompt Targets are deprecated and no longer actively maintained. This concept is
+retained for existing users on older Plano configurations, but new applications should
+not adopt it. For deterministic, task-specific workloads, use Agents
+together with Function Calling instead. The
+prompt_targets configuration block and related CLI commands will continue to
+function for now, but may be removed in a future release.
 
 A Prompt Target is a deterministic, task-specific backend function or API endpoint that your application calls via Plano.
 Unlike agents (which handle wide-ranging, open-ended tasks), prompt targets are designed for focused, specific workloads where Plano can add value through input clarification and validation.
@@ -3009,49 +3052,6 @@ signals.environment.exhaustion.severity
 
 “
 
-Legacy attributes (deprecated, still emitted)
-
-The following aggregate keys pre-date the paper taxonomy and are still
-emitted for one release so existing dashboards keep working. They are
-derived from the layered counts above and will be removed in a future
-release. Migrate to the layered keys when convenient.
-
-
-
-
-
-Legacy attribute
-
-Layered equivalent
-
-signals.follow_up.repair.count
-
-signals.interaction.misalignment.count
-
-signals.follow_up.repair.ratio
-
-(computed: misalignment.count / max(user_turns, 1))
-
-signals.frustration.count
-
-Count of disengagement.negative_stance instances
-
-signals.frustration.severity
-
-Derived severity bucket of the above
-
-signals.repetition.count
-
-signals.interaction.stagnation.count
-
-signals.escalation.requested
-
-True if any disengagement.escalation or disengagement.quit fired
-
-signals.positive_feedback.count
-
-signals.interaction.satisfaction.count
-
 Span Events
 
 In addition to span attributes, every detected signal instance is emitted as
@@ -3232,11 +3232,6 @@ signals.efficiency_score   = 1.0
 signals.interaction.disengagement.count    = 6
 signals.interaction.disengagement.severity = 3
 
-# Legacy (deprecated, emitted while dual-emit is on)
-signals.frustration.count     = 4
-signals.frustration.severity  = 2
-signals.escalation.requested  = true
-
 # Per-instance span events
 event: signal.interaction.disengagement.escalation
   signal.type          = "interaction.disengagement.escalation"
@@ -3248,8 +3243,7 @@ event: signal.interaction.disengagement.escalation
 Building Dashboards
 
 Use signal attributes to build monitoring dashboards in Grafana, Honeycomb,
-Datadog, etc. Prefer the layered keys — they align with the paper taxonomy
-and will outlive the legacy keys.
+Datadog, etc. The layered keys align with the paper taxonomy.
 
 Quality distribution: Count of traces by signals.quality
 
@@ -3487,9 +3481,9 @@ Explore Plano’s LLM integration options
 
 ../concepts/llm_providers/llm_providers.html
 
-<svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-workflow" viewBox="0 0 16 16" aria-hidden="true"><path d="M0 1.75C0 .784.784 0 1.75 0h3.5C6.216 0 7 .784 7 1.75v3.5A1.75 1.75 0 0 1 5.25 7H4v4a1 1 0 0 0 1 1h4v-1.25C9 9.784 9.784 9 10.75 9h3.5c.966 0 1.75.784 1.75 1.75v3.5A1.75 1.75 0 0 1 14.25 16h-3.5A1.75 1.75 0 0 1 9 14.25v-.75H5A2.5 2.5 0 0 1 2.5 11V7h-.75A1.75 1.75 0 0 1 0 5.25Zm1.75-.25a.25.25 0 0 0-.25.25v3.5c0 .138.112.25.25.25h3.5a.25.25 0 0 0 .25-.25v-3.5a.25.25 0 0 0-.25-.25Zm9 9a.25.25 0 0 0-.25.25v3.5c0 .138.112.25.25.25h3.5a.25.25 0 0 0 .25-.25v-3.5a.25.25 0 0 0-.25-.25Z"></path></svg> Prompt Target
+<svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-workflow" viewBox="0 0 16 16" aria-hidden="true"><path d="M0 1.75C0 .784.784 0 1.75 0h3.5C6.216 0 7 .784 7 1.75v3.5A1.75 1.75 0 0 1 5.25 7H4v4a1 1 0 0 0 1 1h4v-1.25C9 9.784 9.784 9 10.75 9h3.5c.966 0 1.75.784 1.75 1.75v3.5A1.75 1.75 0 0 1 14.25 16h-3.5A1.75 1.75 0 0 1 9 14.25v-.75H5A2.5 2.5 0 0 1 2.5 11V7h-.75A1.75 1.75 0 0 1 0 5.25Zm1.75-.25a.25.25 0 0 0-.25.25v3.5c0 .138.112.25.25.25h3.5a.25.25 0 0 0 .25-.25v-3.5a.25.25 0 0 0-.25-.25Zm9 9a.25.25 0 0 0-.25.25v3.5c0 .138.112.25.25.25h3.5a.25.25 0 0 0 .25-.25v-3.5a.25.25 0 0 0-.25-.25Z"></path></svg> Prompt Target (Deprecated)
 
-Understand how Plano handles prompts
+Deprecated — kept for existing users. New apps should use Agents.
 
 ../concepts/prompt_target.html
 
@@ -3575,13 +3569,13 @@ $ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 Option 1: Install planoai with uv (Recommended)
 
-$ uv tool install planoai==0.4.22
+$ uv tool install planoai==0.4.30
 
 Option 2: Install with pip (Traditional)
 
 $ python -m venv venv
 $ source venv/bin/activate   # On Windows, use: venv\Scripts\activate
-$ pip install planoai==0.4.22
+$ pip install planoai==0.4.30
 
 
 
@@ -3749,6 +3743,10 @@ You can then ask a follow-up like “Also book me a hotel near JFK” and Plano-
 
 Deterministic API calls with prompt targets
 
+Deprecated since version v0.4.22: Prompt Targets are deprecated and no longer actively
+maintained. The walkthrough below is preserved for users on existing configs;
+new applications should use Agents instead.
+
 Next, we’ll show Plano’s deterministic API calling using a single prompt target. We’ll build a currency exchange backend powered by https://api.frankfurter.dev/, assuming USD as the base currency.
 
 Step 1. Create plano config file
@@ -3895,6 +3893,11 @@ Function Calling
 
 Function Calling is a powerful feature in Plano that allows your application to dynamically execute backend functions or services based on user prompts.
 This enables seamless integration between natural language interactions and backend operations, turning user inputs into actionable results.
+
+Deprecated since version v0.4.22: The prompt-target based workflow shown below (see Step 2)
+is deprecated. Prompt Targets are no longer actively
+maintained and may be removed in a future release. For new function-calling
+workloads, prefer Agents with tool definitions.
 
 What is Function Calling?
 
@@ -4257,6 +4260,178 @@ response = client.chat.completions.create(
     messages=[{"role": "user", "content": "Write a creative story about space exploration"}]
     # No model specified - router will analyze and choose claude-sonnet-4-5
 )
+
+
+
+Cost- and latency-aware selection
+
+When a route lists more than one candidate model, you can let Plano reorder that
+candidate pool using live cost or latency data instead of relying solely on the
+order you wrote them in. This is controlled per route with selection_policy and
+backed by one or more model_metrics_sources.
+
+This is useful when several models are equally capable for a route and you want Plano
+to always reach for the cheapest (or fastest) option first, with the others kept as
+fallbacks.
+
+Selection policy
+
+Attach an optional selection_policy to any entry in routing_preferences:
+
+Per-route selection policy
+
+routing_preferences:
+  - name: code review
+    description: reviewing, analyzing, and suggesting improvements to existing code
+    models:
+      - anthropic/claude-sonnet-4-5
+      - groq/llama-3.3-70b-versatile
+    selection_policy:
+      prefer: cheapest   # cheapest | fastest | none
+
+prefer accepts:
+
+cheapest — order candidates by total price (input + output rate) ascending, using a cost metrics source.
+
+fastest — order candidates by observed latency ascending, using a latency metrics source.
+
+none (default) — keep the order you declared; no reordering.
+
+Models that have no data in the selected source are ranked last, in their original
+order, so routing always degrades gracefully rather than dropping a candidate.
+
+Configuring the pricing source
+
+cheapest routing needs a price catalog. Plano’s default pricing provider is
+DigitalOcean — its GenAI model catalog is public (no API key, no signup), so cost data
+is available out of the box and is what planoai obs uses if you don’t configure
+anything. The pricing source is fully swappable: point Plano at models.dev,
+or at any endpoint that exposes a supported pricing structure.
+
+The provider field selects which response schema Plano expects (and therefore how it
+parses the catalog); the optional url lets you override the endpoint — for example to
+use a mirror, a cached copy, or an internal catalog service that returns the same shape.
+
+
+
+
+
+
+
+
+
+provider
+
+Default catalog URL
+
+Key format
+
+Expected structure
+
+digitalocean (default)
+
+DigitalOcean GenAI model catalog
+
+lowercase(creator)/model_id
+
+{ data: [ { model_id, pricing: { input_price_per_million, output_price_per_million } } ] }
+
+models.dev
+
+https://models.dev/api.json
+
+creator/model (e.g. anthropic/claude-sonnet-4-5)
+
+{ <provider>: { models: { <model>: { cost: { input, output } } } } }
+
+Because the source is selected per provider, switching is a one-line change. To stay
+on the default DigitalOcean catalog you can omit model_metrics_sources entirely for
+planoai obs, or declare it explicitly for routing:
+
+Default cost source (DigitalOcean)
+
+model_metrics_sources:
+  - type: cost
+    provider: digitalocean   # default; uses the public DO GenAI catalog
+
+To switch to models.dev — an open, community-maintained catalog covering a broad range of
+providers and models — change the provider (and optionally url):
+
+Cost source backed by models.dev
+
+model_metrics_sources:
+  - type: cost
+    provider: models.dev               # models.dev | digitalocean
+    url: https://models.dev/api.json    # optional; defaults per provider
+    refresh_interval: 3600              # optional, seconds; refetch on this interval
+    model_aliases:                      # optional; see below
+      openai/gpt-oss-120b: openai/gpt-4o
+
+To use your own endpoint, pick the provider whose structure your endpoint matches and
+override url — Plano parses the response with that provider’s schema:
+
+Custom endpoint exposing the DigitalOcean catalog structure
+
+model_metrics_sources:
+  - type: cost
+    provider: digitalocean                       # selects the DO response schema
+    url: https://catalog.internal.example.com/pricing
+
+The cost metric used for ranking is the sum of the input and output per-million-token
+rates — a relative signal for ordering candidates, not a per-request bill. For actual
+per-request cost, see the observability console below.
+
+Matching catalog keys to your models
+
+The router looks up each candidate model by the exact name you use in
+routing_preferences (e.g. anthropic/claude-sonnet-4-5). models.dev keys models as
+creator/model, which lines up with Plano’s provider/model naming, so most models
+match automatically.
+
+When a catalog key does not match your model name — for example a version skew, or an
+open-weight model you serve under a different provider — use model_aliases to map the
+catalog key to the Plano model name used in your routing preferences:
+
+model_metrics_sources:
+  - type: cost
+    provider: models.dev
+    model_aliases:
+      # catalog key            : plano model name
+      openai/gpt-oss-120b: openai/gpt-4o
+
+Latency source
+
+fastest routing reads observed latency from a Prometheus instance. Provide the query
+that returns a per-model latency value (lower is faster), labelled by model_name:
+
+Latency source backed by Prometheus
+
+model_metrics_sources:
+  - type: latency
+    provider: prometheus
+    url: http://prometheus:9090
+    query: avg by (model_name) (rate(plano_llm_latency_seconds_sum[5m]))
+    refresh_interval: 60
+
+You can declare both a cost and a latency source at the same time; each route
+picks whichever it needs based on its selection_policy.
+
+Cost in the observability console
+
+planoai obs displays a per-request USD cost column derived from the same pricing
+catalog. By default it reads the cost source from your config (the first
+type: cost entry under model_metrics_sources); you can also override it on the
+command line:
+
+# Use the cost source from ./config.yaml (default)
+planoai obs
+
+# Or override the provider / endpoint explicitly
+planoai obs --pricing-provider models.dev
+planoai obs --pricing-url https://models.dev/api.json
+
+If no source is configured and no override is given, planoai obs falls back to the
+DigitalOcean catalog so the cost column still populates out of the box.
 
 Plano-Orchestrator
 
@@ -4964,7 +5139,7 @@ Find external issues: signals.environment.exhaustion.count > 0
 
 Find inefficient flows: signals.efficiency_score < 0.5
 
-For complete details on all 20 leaf signal types, severity scheme, legacy attribute deprecation, and best practices, see the ../../concepts/signals guide.
+For complete details on all 20 leaf signal types, severity scheme, and best practices, see the ../../concepts/signals guide.
 
 Custom Span Attributes
 
@@ -5062,6 +5237,100 @@ Request headers:
 X-Other-User-Id: usr_999
 
 Result: no attributes are captured from X-Other-User-Id.
+
+Exporting Telemetry Anywhere
+
+Beyond the OTLP/gRPC collector, Plano can stream LLM telemetry directly to
+third-party observability backends through tracing.exporters. The list is
+provider-agnostic: each entry is tagged by its type and points at a URL, so
+new destinations can be added without changing anything else. Exporters run in
+addition to opentracing_grpc_endpoint — you can use one, the other, or both.
+
+PostHog
+
+PostHog is supported as a first-class integration. Every LLM call is captured as
+a PostHog $ai_generation
+event and POSTed to PostHog’s capture API. Setup is intentionally minimal —
+point at your PostHog URL and project token:
+
+tracing:
+  random_sampling: 100
+  exporters:
+    - type: posthog
+      url: https://us.i.posthog.com   # /batch/ is appended automatically
+      api_key: $POSTHOG_API_KEY        # PostHog project token (env expansion supported)
+      distinct_id_header: x-user-id    # optional; omit for anonymous capture
+      capture_messages: false          # optional; send user message as $ai_input
+
+That’s all that’s required. When random_sampling is greater than 0 and at
+least one exporter (or opentracing_grpc_endpoint) is configured, tracing is
+enabled and $ai_generation events begin flowing. They appear under PostHog’s
+AI Observability in the Traces and Generations tabs.
+
+Captured properties
+
+Plano maps span data onto PostHog $ai_* properties:
+
+
+
+
+
+PostHog property
+
+Source
+
+$ai_model
+
+Resolved upstream model (llm.model)
+
+$ai_provider
+
+Provider derived from the resolved model (llm.provider)
+
+$ai_latency
+
+Total call duration in seconds (llm.duration_ms)
+
+$ai_time_to_first_token
+
+Time to first token in seconds, streaming only
+
+$ai_input_tokens / $ai_output_tokens
+
+Prompt / completion token usage
+
+$ai_http_status / $ai_is_error
+
+Upstream HTTP status and error flag
+
+$ai_trace_id / $ai_parent_id
+
+Trace and parent span identifiers
+
+distinct_id
+
+Value of distinct_id_header (else anonymous)
+
+Identifying users
+
+Set distinct_id_header to the request header carrying your user identity
+(for example x-user-id). When present, Plano stamps the value as the PostHog
+distinct_id. When the header is missing — or distinct_id_header is not
+configured — the event is captured anonymously ($process_person_profile is
+set to false), matching PostHog’s anonymous vs. identified semantics.
+
+Capturing message content
+
+By default Plano does not send prompt content off-box. Set
+capture_messages: true to include the (truncated) user message preview as
+$ai_input. Leave it false when prompt content must not leave your data
+plane.
+
+Multiple destinations
+
+exporters is a list, so you can fan out to several backends (and combine
+with an OTLP collector). A common use is shipping to multiple PostHog instances
+(for example separate EU and US projects for data-residency).
 
 Benefits of Using Traceparent Headers
 
@@ -6682,8 +6951,6 @@ cli_reference_init
 
 cli_reference_trace
 
-cli_reference_prompt_targets
-
 cli_reference_cli_agent
 
 
@@ -6901,20 +7168,6 @@ Operational notes
 
 
 
-planoai prompt_targets
-
-Generate prompt-target metadata from Python methods.
-
-Synopsis
-
-$ planoai prompt_targets --file <python-file>
-
-Options
-
---file, --f <python-file>: required path to a .py source file.
-
-
-
 planoai cli_agent
 
 Start an interactive CLI agent session against a running Plano deployment.
@@ -6946,6 +7199,28 @@ Configuration Reference
 The following is a complete reference of the plano_config.yml that controls the behavior of a single instance of
 the Plano gateway. This where you enable capabilities like routing to upstream LLm providers, defining prompt_targets
 where prompts get routed to, apply guardrails, and enable critical agent observability features.
+
+Model provider headers
+
+Each entry under model_providers (or the legacy llm_providers alias) may include a headers map of extra
+HTTP headers that Plano adds to upstream LLM requests. Plano applies these headers after it sets authentication from
+access_key or passthrough_auth, so you can supply provider-specific metadata without replacing the configured
+credentials.
+
+Type: map of strings (header name → value)
+
+Optional: yes
+
+Common uses: required User-Agent values, organization or account identifiers, or other headers some APIs expect
+
+model_providers:
+  - model: moonshotai/kimi-for-coding
+    access_key: $MOONSHOTAI_API_KEY
+    base_url: https://api.kimi.com/coding/v1
+    headers:
+      User-Agent: "KimiCLI/1.3"
+
+The example below includes this and other provider options in context.
 
 Plano Configuration - Full Reference
 
@@ -6998,6 +7273,14 @@ model_providers:
     http_host: api.custom-provider.com
     access_key: $CUSTOM_API_KEY
 
+  # headers: optional map of extra HTTP headers sent on upstream requests (after auth).
+  # Use for provider-specific requirements such as User-Agent, org IDs, or account headers.
+  - model: moonshotai/kimi-for-coding
+    access_key: $MOONSHOTAI_API_KEY
+    base_url: https://api.kimi.com/coding/v1
+    headers:
+      User-Agent: "KimiCLI/1.3"
+
 # Model aliases - use friendly names instead of full provider model names
 model_aliases:
   fast-llm:
@@ -7028,6 +7311,24 @@ routing_preferences:
       - groq/llama-3.3-70b-versatile
     selection_policy:
       prefer: cheapest
+
+# model_metrics_sources: external catalogs the router reads to reorder candidate
+# models for selection_policy.prefer. A `cost` source ranks `prefer: cheapest`;
+# a `latency` source ranks `prefer: fastest`. Both are optional.
+model_metrics_sources:
+  # Cost catalog. provider: models.dev | digitalocean (default url per provider).
+  - type: cost
+    provider: models.dev
+    url: https://models.dev/api.json   # optional; omit to use the provider default
+    refresh_interval: 3600             # optional, seconds
+    model_aliases:                     # optional: catalog key -> Plano model name
+      openai/gpt-oss-120b: openai/gpt-4o
+  # Latency catalog (Prometheus). Used for selection_policy.prefer: fastest.
+  - type: latency
+    provider: prometheus
+    url: http://prometheus:9090
+    query: avg by (model_name) (rate(plano_llm_latency_seconds_sum[5m]))
+    refresh_interval: 60
 
 # HTTP listeners - entry points for agent routing, prompt targets, and direct LLM access
 listeners:
@@ -7186,6 +7487,19 @@ tracing:
     static:
       environment: production
       service.team: platform
+  # Provider-agnostic export destinations. LLM spans are streamed to each of
+  # these in addition to any opentracing_grpc_endpoint above.
+  exporters:
+    # PostHog AI observability: each LLM call is captured as an $ai_generation event.
+    - type: posthog
+      # PostHog host. The /batch/ capture path is appended automatically.
+      url: https://us.i.posthog.com
+      # PostHog project API key (token). Supports $ENV_VAR expansion.
+      api_key: $POSTHOG_API_KEY
+      # Optional: request header used as the PostHog distinct_id. Omit for anonymous capture.
+      distinct_id_header: x-user-id
+      # Optional: include the (truncated) user message as $ai_input. Defaults to false.
+      capture_messages: false
 
 ---
 
@@ -7244,7 +7558,7 @@ Create a docker-compose.yml file with the following configuration:
 # docker-compose.yml
 services:
   plano:
-    image: katanemo/plano:0.4.22
+    image: katanemo/plano:0.4.30
     container_name: plano
     ports:
       - "10000:10000" # ingress (client -> plano)
@@ -7314,7 +7628,7 @@ spec:
     spec:
       containers:
         - name: plano
-          image: katanemo/plano:0.4.22
+          image: katanemo/plano:0.4.30
           ports:
             - containerPort: 12000  # LLM gateway (chat completions, model routing)
               name: llm-gateway
